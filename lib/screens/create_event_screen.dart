@@ -125,7 +125,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
             'espera...',
             style: TextStyle(color: Theme.of(context).colorScheme.onPrimary),
           ),
-          backgroundColor: Theme.of(context).colorScheme.surface,
+          backgroundColor: Theme.of(context).colorScheme.primary,
         ),
       );
       return;
@@ -217,7 +217,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
             child: Container(
               constraints: const BoxConstraints(maxHeight: 200),
               decoration: BoxDecoration(
-                border: Border.all(color: colorScheme.secondary.withValues(alpha: 0.3)),
+                border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
                 borderRadius: BorderRadius.circular(8),
                 color: colorScheme.surface, // Cream in light mode, warm dark in dark mode
               ),
@@ -228,9 +228,9 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                 itemBuilder: (context, index) {
                   final suggestion = _addressSuggestions[index];
                   return ListTile(
-                    tileColor: colorScheme.surface,
+                    tileColor: colorScheme.secondary,
                     title: Text(
-                      suggestion['Describe tu evento...'],
+                      suggestion['escribe tu direccion..'],
                       style: TextStyle(
                         fontSize: 14,
                         color: colorScheme.onPrimary, // Light yellowish-orange in light mode, pale yellowish-cream in dark mode
@@ -311,7 +311,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                   'Error fetching location: ${data['status']}',
                   style: TextStyle(color: Theme.of(context).colorScheme.onPrimary),
                 ),
-                backgroundColor: Theme.of(context).colorScheme.surface,
+                backgroundColor: Theme.of(context).colorScheme.primary,
               ),
             );
           }
@@ -327,7 +327,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                 'Error fetching location: ${response.statusCode}',
                 style: TextStyle(color: Theme.of(context).colorScheme.onPrimary),
               ),
-              backgroundColor: Theme.of(context).colorScheme.surface,
+              backgroundColor: Theme.of(context).colorScheme.primary,
             ),
           );
         }
@@ -341,7 +341,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
               'Error fetching location: $e',
               style: TextStyle(color: Theme.of(context).colorScheme.onPrimary),
             ),
-            backgroundColor: Theme.of(context).colorScheme.surface,
+            backgroundColor: Theme.of(context).colorScheme.primary,
           ),
         );
       }
@@ -362,13 +362,13 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
           data: theme.copyWith(
             colorScheme: colorScheme.copyWith(
               primary: colorScheme.primary, // Dark brown in light mode, muted dark brown in dark mode
-              onPrimary: colorScheme.onPrimary, // White in both modes
-              surface: colorScheme.surface, // Cream in light mode, warm dark in dark mode
-              onSurface: colorScheme.onSurface, // Light yellowish-orange in light mode, pale yellowish-cream in dark mode
+              onPrimary: colorScheme.onSurface, // White in both modes
+              surface: colorScheme.secondary, // Cream in light mode, warm dark in dark mode
+              onSurface: colorScheme.onPrimary, // Light yellowish-orange in light mode, pale yellowish-cream in dark mode
             ),
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(
-                foregroundColor: colorScheme.primary, // Button text color
+                foregroundColor: colorScheme.onSurface, // Button text color
               ),
             ),
           ),
@@ -388,13 +388,13 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
             data: theme.copyWith(
               colorScheme: colorScheme.copyWith(
                 primary: colorScheme.primary,
-                onPrimary: colorScheme.onPrimary,
-                surface: colorScheme.surface,
-                onSurface: colorScheme.onSurface,
+                onPrimary: colorScheme.onSurface,
+                surface: colorScheme.secondary,
+                onSurface: colorScheme.onPrimary,
               ),
               textButtonTheme: TextButtonThemeData(
                 style: TextButton.styleFrom(
-                  foregroundColor: colorScheme.primary,
+                  foregroundColor: colorScheme.onSurface,
                 ),
               ),
             ),
@@ -424,7 +424,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                      'End time must be after start time',
+                      'El final debe ser posterior al inicio',
                       style: TextStyle(color: Theme.of(context).colorScheme.onPrimary),
                     ),
                     backgroundColor: Theme.of(context).colorScheme.surface,
@@ -466,7 +466,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
               'Error uploading image: $e',
               style: TextStyle(color: Theme.of(context).colorScheme.onPrimary),
             ),
-            backgroundColor: Theme.of(context).colorScheme.surface,
+            backgroundColor: Theme.of(context).colorScheme.primary,
           ),
         );
       }
@@ -527,7 +527,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
               'Error getting location: $e',
               style: TextStyle(color: Theme.of(context).colorScheme.onPrimary),
             ),
-            backgroundColor: Theme.of(context).colorScheme.surface,
+            backgroundColor: Theme.of(context).colorScheme.primary,
           ),
         );
       }
@@ -613,7 +613,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       if (mounted) {
         setState(() {
           _selectedLocation = latLng;
-          _geocodedAddress = 'Unknown Location';
+          _geocodedAddress = 'Ubicación no disponible';
           _addressController.text = _geocodedAddress!;
           _isGeocoding = false;
         });
@@ -622,10 +622,10 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Error resolving address: $e',
+              'Error resolviendo dirección: $e',
               style: TextStyle(color: Theme.of(context).colorScheme.onPrimary),
             ),
-            backgroundColor: Theme.of(context).colorScheme.surface,
+            backgroundColor: Theme.of(context).colorScheme.primary,
           ),
         );
       }
@@ -639,10 +639,10 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Please select both start and end times',
+            'Por favor seleccione una fecha y hora',
             style: TextStyle(color: Theme.of(context).colorScheme.onPrimary),
           ),
-          backgroundColor: Theme.of(context).colorScheme.surface,
+          backgroundColor: Theme.of(context).colorScheme.primary,
         ),
       );
       return;
@@ -652,10 +652,10 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Please select a location',
+            'Por favor seleccione una ubicación',
             style: TextStyle(color: Theme.of(context).colorScheme.onPrimary),
           ),
-          backgroundColor: Theme.of(context).colorScheme.surface,
+          backgroundColor: Theme.of(context).colorScheme.primary,
         ),
       );
       return;
@@ -665,10 +665,10 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Please select at least one interest',
+            'Por favor seleccione al menos un interés',
             style: TextStyle(color: Theme.of(context).colorScheme.onPrimary),
           ),
-          backgroundColor: Theme.of(context).colorScheme.surface,
+          backgroundColor: Theme.of(context).colorScheme.primary,
         ),
       );
       return;
@@ -708,23 +708,23 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Event created successfully',
+              'Evento creado exitosamente',
               style: TextStyle(color: Theme.of(context).colorScheme.onPrimary),
             ),
-            backgroundColor: Theme.of(context).colorScheme.surface,
+            backgroundColor: Theme.of(context).colorScheme.primary,
           ),
         );
       }
     } catch (e) {
-      developer.log('Error creating event: $e', name: 'CreateEventScreen');
+      developer.log('Error creando evento: $e', name: 'CreateEventScreen');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Error creating event: $e',
+              'Error creando evento: $e',
               style: TextStyle(color: Theme.of(context).colorScheme.onPrimary),
             ),
-            backgroundColor: Theme.of(context).colorScheme.surface,
+            backgroundColor: Theme.of(context).colorScheme.primary,
           ),
         );
       }
@@ -751,9 +751,9 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
           backgroundColor: colorScheme.primary, // Dark brown in light mode, muted dark brown in dark mode
           foregroundColor: colorScheme.onPrimary, // White in both modes
           title: Text(
-            'Create Event',
+            'Crea tu evento!',
             style: TextStyle(
-              color: colorScheme.onPrimary,
+              color: colorScheme.onSurface,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -767,15 +767,15 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                 TextFormField(
                   controller: _nameController,
                   decoration: InputDecoration(
-                    labelText: 'Event Name',
-                    labelStyle: TextStyle(color: colorScheme.onPrimary.withValues(alpha: 0.6)),
+                    labelText: 'Nombre del evento',
+                    labelStyle: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.6)),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: colorScheme.onSecondary),
+                      borderSide: BorderSide(color: colorScheme.primary),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: colorScheme.secondary.withValues(alpha: 0.5)),
+                      borderSide: BorderSide(color: colorScheme.primary.withValues(alpha: 0.5)),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -785,7 +785,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                   style: TextStyle(color: colorScheme.onPrimary),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Please enter an event name';
+                      return 'Por favor ingrese un nombre';
                     }
                     return null;
                   },
@@ -794,15 +794,15 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                 TextFormField(
                   controller: _descriptionController,
                   decoration: InputDecoration(
-                    labelText: 'Description (optional)',
-                    labelStyle: TextStyle(color: colorScheme.onPrimary.withValues(alpha: 0.6)),
+                    labelText: 'Descripción',
+                    labelStyle: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.6)),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: colorScheme.secondary),
+                      borderSide: BorderSide(color: colorScheme.primary),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: colorScheme.secondary.withValues(alpha: 0.5)),
+                      borderSide: BorderSide(color: colorScheme.primary.withValues(alpha: 0.5)),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -814,11 +814,11 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Interests',
+                  'Interéses',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: colorScheme.primary, // Dark brown in light mode, muted dark brown in dark mode
+                    color: colorScheme.onSecondary, // Dark brown in light mode, muted dark brown in dark mode
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -831,17 +831,17 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                       label: Text(
                         interest,
                         style: TextStyle(
-                          color: isSelected ? colorScheme.onPrimary : colorScheme.onPrimary,
+                          color: isSelected ? colorScheme.onSurface : colorScheme.onPrimary,
                         ),
                       ),
                       selected: isSelected,
                       selectedColor: colorScheme.primary, // Dark brown in light mode, muted dark brown in dark mode
                       backgroundColor: colorScheme.surface.withValues(alpha: 0.8),
-                      checkmarkColor: colorScheme.onPrimary,
+                      checkmarkColor: colorScheme.onSurface,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                         side: BorderSide(
-                          color: colorScheme.secondary.withValues(alpha: 0.5),
+                          color: colorScheme.primary.withValues(alpha: 0.5),
                         ),
                       ),
                       onSelected: (selected) {
@@ -866,15 +866,15 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                         controller: _addressController,
                         focusNode: _addressFocusNode,
                         decoration: InputDecoration(
-                          labelText: 'Address',
-                          labelStyle: TextStyle(color: colorScheme.onPrimary.withValues(alpha: 0.6)),
+                          labelText: 'Ubicación',
+                          labelStyle: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.6)),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: colorScheme.secondary),
+                            borderSide: BorderSide(color: colorScheme.primary),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: colorScheme.secondary.withValues(alpha: 0.5)),
+                            borderSide: BorderSide(color: colorScheme.primary.withValues(alpha: 0.5)),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -888,7 +888,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                               height: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: colorScheme.primary,
+                                color: colorScheme.onSurface,
                               ),
                             ),
                           )
@@ -897,7 +897,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                         style: TextStyle(color: colorScheme.onPrimary),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
-                            return 'Please enter an address';
+                            return 'Por favor seleccione una ubicación';
                           }
                           return null;
                         },
@@ -911,7 +911,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: colorScheme.primary,
+                            color: colorScheme.onSurface,
                           ),
                         ),
                       ),
@@ -972,7 +972,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                   )
                       : Center(
                     child: CircularProgressIndicator(
-                      color: colorScheme.primary,
+                      color: colorScheme.onSurface,
                     ),
                   ),
                 ),
@@ -990,43 +990,43 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                   ),
                   child: _isLoading
                       ? CircularProgressIndicator(
-                    color: colorScheme.onPrimary,
+                    color: colorScheme.onSurface,
                   )
                       : const Text(
-                    'Use My Location',
+                    'Usar ubicación actual',
                     style: TextStyle(fontSize: 16),
                   ),
                 ),
                 const SizedBox(height: 16),
                 ListTile(
                   title: Text(
-                    'Event Image (optional)',
+                    'Imagen',
                     style: TextStyle(
                       color: colorScheme.onPrimary,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   subtitle: Text(
-                    _imageUrl != null ? 'Image selected' : 'No image selected',
+                    _imageUrl != null ? 'imagen seleccionada' : 'sube una imágen',
                     style: TextStyle(color: colorScheme.onPrimary.withValues(alpha: 0.6)),
                   ),
                   trailing: Icon(
                     Icons.add_a_photo,
-                    color: colorScheme.onPrimary,
+                    color: colorScheme.onSurface,
                   ),
                   onTap: _pickAndUploadImage,
-                  tileColor: colorScheme.surface.withValues(alpha: 0.8),
+                  tileColor: colorScheme.secondary.withValues(alpha: 0.8),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
-                    side: BorderSide(color: colorScheme.secondary.withValues(alpha: 0.3)),
+                    side: BorderSide(color: colorScheme.primary.withValues(alpha: 0.3)),
                   ),
                 ),
                 const SizedBox(height: 16),
                 ListTile(
                   title: Text(
                     _startTime == null
-                        ? 'Select Start Time'
-                        : 'Start: ${_startTime!.toString().substring(0, 16)}',
+                        ? 'Hora de incio'
+                        : 'Inicio: ${_startTime!.toString().substring(0, 16)}',
                     style: TextStyle(
                       color: colorScheme.onPrimary,
                       fontWeight: FontWeight.bold,
@@ -1034,21 +1034,21 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                   ),
                   trailing: Icon(
                     Icons.calendar_today,
-                    color: colorScheme.onPrimary,
+                    color: colorScheme.onSurface,
                   ),
                   onTap: () => _selectDateTime(context, true),
-                  tileColor: colorScheme.surface.withValues(alpha: 0.8),
+                  tileColor: colorScheme.secondary.withValues(alpha: 0.8),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
-                    side: BorderSide(color: colorScheme.secondary.withValues(alpha: 0.3)),
+                    side: BorderSide(color: colorScheme.primary.withValues(alpha: 0.3)),
                   ),
                 ),
                 if (_startTime != null) ...[
                   ListTile(
                     title: Text(
                       _endTime == null
-                          ? 'Select End Time'
-                          : 'End: ${_endTime!.toString().substring(0, 16)}',
+                          ? 'Hora de termino'
+                          : 'Finaliza: ${_endTime!.toString().substring(0, 16)}',
                       style: TextStyle(
                         color: colorScheme.onPrimary,
                         fontWeight: FontWeight.bold,
@@ -1056,13 +1056,13 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                     ),
                     trailing: Icon(
                       Icons.calendar_today,
-                      color: colorScheme.onPrimary,
+                      color: colorScheme.onSurface,
                     ),
                     onTap: () => _selectDateTime(context, false),
-                    tileColor: colorScheme.surface.withValues(alpha: 0.8),
+                    tileColor: colorScheme.onSecondary.withValues(alpha: 0.8),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
-                      side: BorderSide(color: colorScheme.secondary.withValues(alpha: .3)),
+                      side: BorderSide(color: colorScheme.primary.withValues(alpha: .3)),
                     ),
                   ),
                 ],
@@ -1070,7 +1070,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                 _isLoading
                     ? Center(
                   child: CircularProgressIndicator(
-                    color: colorScheme.primary,
+                    color: colorScheme.onSurface,
                   ),
                 )
                     : ElevatedButton(
@@ -1085,7 +1085,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                     elevation: 3,
                   ),
                   child: const Text(
-                    'Create Event',
+                    'Crear Evento',
                     style: TextStyle(fontSize: 16),
                   ),
                 ),

@@ -1,3 +1,5 @@
+//lib/models/comment.dart
+
 class Comment {
   final String commentId;
   final String postId;
@@ -13,10 +15,10 @@ class Comment {
     required this.timestamp,
   });
 
-  factory Comment.fromMap(Map<String, dynamic> map) {
+  factory Comment.fromMap(Map<String, dynamic> map, {required String postId}) {
     return Comment(
       commentId: map['commentId'] ?? '',
-      postId: map['postId'] ?? '',
+      postId: postId,
       userId: map['userId'] ?? '',
       content: map['content'] ?? '',
       timestamp: map['timestamp'] ?? '',

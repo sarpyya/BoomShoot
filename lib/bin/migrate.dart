@@ -7,7 +7,7 @@ void main() async {
   final dataService = FirebaseDataService();
   print('Starting Firestore migration...');
   try {
-    //await dataService.migrateDatabase();
+    await dataService.migrateUsers();
     print('Firestore migration completed.');
   } catch (e) {
     print('Migration error: $e');

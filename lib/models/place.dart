@@ -1,3 +1,4 @@
+//lib/models/place.dart
 class Place {
   final String placeId;
   final String name;

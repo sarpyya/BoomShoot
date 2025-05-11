@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
-
+import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/event.dart';
+import 'dart:developer' as developer;
+import 'dart:async';
 
 // Card grande (normal)
 class EventCardNormal extends StatelessWidget {
@@ -11,91 +15,143 @@ class EventCardNormal extends StatelessWidget {
     required this.event,
   });
 
+  void _openGallery(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final eventId = event.eventId;
+      context.push('/gallery/$eventId');
+      developer.log('Navigating to /gallery/$eventId', name: 'EventCardNormal');
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Card(
-      shape: RoundedRectangleBorder(
+    return Container(
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: colorScheme.secondary.withValues(alpha: 0.3), // Border with secondary color
+        border: Border.all(
+          color: colorScheme.outline.withOpacity(0.1),
           width: 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withOpacity(0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      elevation: 4,
-      color: colorScheme.surface, // Use surface color for card background
+      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ClipRRect(
             borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            child: Image.network(
-              event.imageUrl ?? '',
+            child: CachedNetworkImage(
+              imageUrl: event.imageUrl ?? '',
               width: double.infinity,
-              height: 180,
+              height: 200,
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Container(
+              placeholder: (context, url) => Container(
                 width: double.infinity,
-                height: 180,
-                color: colorScheme.onSurface.withValues(alpha: 0.1),
+                height: 200,
+                color: colorScheme.surfaceVariant,
+                child: const Center(child: CircularProgressIndicator()),
+              ),
+              errorWidget: (context, url, error) => Container(
+                width: double.infinity,
+                height: 200,
+                color: colorScheme.surfaceVariant,
                 child: Icon(
                   Icons.event,
-                  size: 50,
-                  color: colorScheme.onSurface,
+                  size: 60,
+                  color: colorScheme.secondary,
                 ),
               ),
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   event.name,
                   style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.primary, // Use primary color for event name
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 Row(
                   children: [
                     Icon(
                       Icons.location_on,
-                      size: 16,
-                      color: colorScheme.secondary, // Use secondary color for icons
+                      size: 18,
+                      color: colorScheme.secondary,
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        event.address ?? 'Unknown location',
+                        event.address ?? 'Ubicación desconocida',
                         style: TextStyle(
-                          fontSize: 14,
-                          color: colorScheme.onSurface, // Use onSurface for text
+                          fontSize: 14, // Reduced font size to prevent overflow
+                          color: colorScheme.secondary,
                         ),
+                        overflow: TextOverflow.ellipsis, // Add ellipsis for long addresses
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 12),
                 Row(
                   children: [
                     Icon(
                       Icons.access_time,
-                      size: 16,
-                      color: colorScheme.secondary, // Use secondary color for icons
+                      size: 18,
+                      color: colorScheme.secondary,
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 8),
                     Text(
                       event.startTime,
                       style: TextStyle(
-                        fontSize: 14,
-                        color: colorScheme.onSurface, // Use onSurface for text
+                        fontSize: 14, // Reduced font size to prevent overflow
+                        color: colorScheme.secondary,
                       ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        Icons.share,
+                        color: colorScheme.secondary,
+                        size: 24,
+                      ),
+                      onPressed: () {
+                        final shareLink = 'https://test-31f21.firebaseapp.com/gallery/${event.eventId}';
+                        Share.share(
+                          shareLink,
+                          subject: '¡Mira las fotos del evento ${event.name}!',
+                        );
+                        developer.log('Sharing link: $shareLink', name: 'EventCardNormal');
+                      },
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        Icons.photo_library,
+                        color: colorScheme.primary,
+                        size: 24,
+                      ),
+                      onPressed: () => _openGallery(context),
+                      tooltip: 'Ver Galería',
                     ),
                   ],
                 ),
@@ -117,101 +173,161 @@ class EventCardMini extends StatelessWidget {
     required this.event,
   });
 
+  void _openGallery(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final eventId = event.eventId;
+      context.push('/gallery/$eventId');
+      developer.log('Navigating to /gallery/$eventId', name: 'EventCardMini');
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 8),
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: colorScheme.onSurface, // Use surface color for background
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: colorScheme.secondary.withValues(alpha: 0.3), // Border with secondary color
-          width: 1,
+    return GestureDetector(
+      onTap: () {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          context.push('/event/${event.eventId}');
+          developer.log('Navigating to /event/${event.eventId}', name: 'EventCardMini');
+        });
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: colorScheme.outline.withValues(alpha:0.1),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: colorScheme.shadow.withValues(alpha:0.5),
+              blurRadius: 6,
+              offset: const Offset(2, 4),
+            ),
+          ],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: colorScheme.onSurface.withValues(alpha: 0.1),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 32,
-            backgroundColor: colorScheme.onSurface.withValues(alpha: 0.1),
-            backgroundImage: event.imageUrl != null && event.imageUrl!.isNotEmpty
-                ? NetworkImage(event.imageUrl!)
-                : null,
-            child: event.imageUrl == null || event.imageUrl!.isEmpty
-                ? Icon(
-              Icons.event,
-              size: 32,
-              color: colorScheme.onSurface,
-            )
-                : null,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  event.name,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.onPrimary, // Use primary color for event name
+        child: Row(
+          children: [
+            SizedBox(
+              width: 64,
+              height: 64,
+              child: ClipOval(
+                child: CachedNetworkImage(
+                  imageUrl: event.imageUrl ?? '',
+                  fit: BoxFit.cover,
+                  placeholder: (context, url) => Container(
+                    color: colorScheme.surfaceContainerHighest,
+                    child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                  ),
+                  errorWidget: (context, url, error) => Container(
+                    color: colorScheme.surfaceContainerHighest,
+                    child: Icon(
+                      Icons.event,
+                      size: 32,
+                      color: colorScheme.secondary,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.location_on,
-                      size: 14,
-                      color: colorScheme.onSecondary, // Use secondary color for icons
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    event.name,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.primary,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        event.address ?? 'Unknown location',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colorScheme.onSecondary, // Use onSurface for text
+                    maxLines: 1,
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.location_on,
+                        size: 16,
+                        color: colorScheme.primary,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          event.address ?? 'Sin ubicación',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.secondary,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          maxLines: 1,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.access_time,
-                      size: 14,
-                      color: colorScheme.onSecondary, // Use secondary color for icons
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      event.startTime,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colorScheme.onSecondary, // Use onSurface for text
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.access_time,
+                        size: 16,
+                        color: colorScheme.primary,
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          event.startTime,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.secondary,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          maxLines: 1,
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          Icons.share,
+                          color: colorScheme.primary,
+                          size: 20,
+                        ),
+                        onPressed: () {
+                          final shareLink = 'https://test-31f21.firebaseapp.com/gallery/${event.eventId}';
+                          Share.share(
+                            shareLink,
+                            subject: '¡Mira las fotos del evento ${event.name}!',
+                          );
+                          developer.log('Sharing link: $shareLink', name: 'EventCardMini');
+                        },
+                        constraints: const BoxConstraints(),
+                        padding: const EdgeInsets.all(4),
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          Icons.photo_library,
+                          color: colorScheme.primary,
+                          size: 20,
+                        ),
+                        onPressed: () => _openGallery(context),
+                        constraints: const BoxConstraints(),
+                        padding: const EdgeInsets.all(4),
+                        tooltip: 'Ver Galería',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -230,25 +346,44 @@ class EventMiniCarousel extends StatefulWidget {
 class _EventMiniCarouselState extends State<EventMiniCarousel> {
   final PageController _pageController = PageController(viewportFraction: 0.8);
   int _currentPage = 0;
+  Timer? _autoScrollTimer;
 
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(seconds: 4), _autoScroll);
+    _startAutoScroll();
   }
 
-  void _autoScroll() {
-    if (!mounted) return;
-    if (_pageController.hasClients) {
-      _currentPage++;
-      if (_currentPage >= widget.miniCards.length) _currentPage = 0;
-      _pageController.animateToPage(
-        _currentPage,
-        duration: const Duration(milliseconds: 500),
-        curve: Curves.easeInOut,
-      );
+  void _startAutoScroll() {
+    _autoScrollTimer?.cancel();
+    if (widget.miniCards.isEmpty) return;
+    _autoScrollTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_pageController.hasClients) {
+        _currentPage = (_currentPage + 1) % widget.miniCards.length;
+        _pageController.animateToPage(
+          _currentPage,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeInOut,
+        );
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(EventMiniCarousel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.miniCards != widget.miniCards) {
+      _autoScrollTimer?.cancel();
+      _currentPage = 0;
+      if (_pageController.hasClients) {
+        _pageController.jumpToPage(0);
+      }
+      _startAutoScroll();
     }
-    Future.delayed(const Duration(seconds: 4), _autoScroll);
   }
 
   @override
@@ -256,10 +391,21 @@ class _EventMiniCarouselState extends State<EventMiniCarousel> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    if (widget.miniCards.isEmpty) {
+      return Container(
+        height: 160,
+        padding: const EdgeInsets.symmetric(vertical: 32),
+        color: colorScheme.surface,
+        child:  Center(
+          child: Text('No hay eventos disponibles', style: TextStyle(color: colorScheme.secondary)),
+        ),
+      );
+    }
+
     return Container(
-      height: 120, // Increased height to accommodate padding
+      height: 160,
       padding: const EdgeInsets.symmetric(vertical: 8),
-      color: colorScheme.surface.withValues(alpha: 0.5), // Subtle background for the carousel
+      color: colorScheme.surface,
       child: PageView.builder(
         controller: _pageController,
         itemCount: widget.miniCards.length,
@@ -272,7 +418,9 @@ class _EventMiniCarouselState extends State<EventMiniCarousel> {
 
   @override
   void dispose() {
+    _autoScrollTimer?.cancel();
     _pageController.dispose();
     super.dispose();
   }
 }
+

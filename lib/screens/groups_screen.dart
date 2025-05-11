@@ -1,12 +1,10 @@
 import 'package:bs/services/firebase_service.dart';
 import 'package:bs/models/group.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:go_router/go_router.dart';
 import 'dart:developer' as developer;
 
 import '../widgets/custom_scaffold.dart';
-import '../widgets/radial_menu.dart';
 
 class GroupsScreen extends StatefulWidget {
   final String userId;
@@ -30,16 +28,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
   @override
   void dispose() {
     developer.log('Disposing GroupsScreen', name: 'GroupsScreen');
-    _dataService.dispose();
     super.dispose();
-  }
-
-  void _showRadialMenu(BuildContext context) {
-    showDialog(
-      context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.20),
-      builder: (context) => RadialMenu(userId: widget.userId),
-    );
   }
 
   void _onPopInvokedWithResult(bool didPop, dynamic result) {
@@ -56,30 +45,17 @@ class _GroupsScreenState extends State<GroupsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: _onPopInvokedWithResult,
       child: CustomScaffold(
+        userId: widget.userId, // Pass userId to CustomScaffold
         title: 'Grupos',
         showBackButton: true,
-        showMenuButton: true,
-        onMenuPressed: () => _showRadialMenu(context),
-        floatingActionButton: SpeedDial(
-          icon: Icons.add,
-          activeIcon: Icons.close,
-          children: [
-            SpeedDialChild(
-              child: const Icon(Icons.event),
-              label: 'Crear Evento',
-              onTap: () => context.go('/create_event'),
-            ),
-            SpeedDialChild(
-              child: const Icon(Icons.group),
-              label: 'Crear Grupo',
-              onTap: () => context.go('/create_group'),
-            ),
-          ],
-        ),
+        showMenuButton: true, // RadialMenu is handled by ShellRoute
         body: FutureBuilder<List<Group>>(
           future: _dataService.getUserGroups(widget.userId),
           builder: (context, snapshot) {
@@ -93,7 +69,11 @@ class _GroupsScreenState extends State<GroupsScreen> {
             _isLoading = snapshot.connectionState == ConnectionState.waiting;
 
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
+              return Center(
+                child: CircularProgressIndicator(
+                  color: colorScheme.onSurface,
+                ),
+              );
             }
 
             if (snapshot.hasError) {
@@ -105,13 +85,23 @@ class _GroupsScreenState extends State<GroupsScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('Error: ${snapshot.error}'),
+                    Text(
+                      'Error: ${snapshot.error}',
+                      style: TextStyle(color: colorScheme.onSecondary),
+                    ),
                     const SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: () {
                         // Trigger rebuild to retry
                         setState(() {});
                       },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: colorScheme.primary,
+                        foregroundColor: colorScheme.onPrimary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                       child: const Text('Retry'),
                     ),
                   ],
@@ -123,7 +113,12 @@ class _GroupsScreenState extends State<GroupsScreen> {
             developer.log('Groups loaded: ${groups.length}', name: 'GroupsScreen');
 
             if (groups.isEmpty) {
-              return const Center(child: Text('No estás en ningún grupo'));
+              return Center(
+                child: Text(
+                  'No estás en ningún grupo',
+                  style: TextStyle(color: colorScheme.onSecondary),
+                ),
+              );
             }
 
             return ListView.builder(
@@ -132,26 +127,48 @@ class _GroupsScreenState extends State<GroupsScreen> {
               itemBuilder: (context, index) {
                 final group = groups[index];
                 return Card(
+                  key: ValueKey('group_${group.groupId}'), // Add key for stability
                   elevation: 2,
                   margin: const EdgeInsets.symmetric(vertical: 8),
+                  color: colorScheme.surface,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                      color: colorScheme.onSecondary.withValues(alpha: 0.3),
+                    ),
+                  ),
                   child: ListTile(
                     leading: CircleAvatar(
-                      backgroundImage: group.imageUrl != null
+                      backgroundColor: colorScheme.surface.withValues(alpha: 0.1),
+                      backgroundImage: group.imageUrl != null && group.imageUrl!.isNotEmpty
                           ? NetworkImage(group.imageUrl!)
                           : null,
-                      child: group.imageUrl == null ? const Icon(Icons.group) : null,
+                      child: group.imageUrl == null || group.imageUrl!.isEmpty
+                          ? Icon(
+                        Icons.group,
+                        color: colorScheme.onSurface,
+                      )
+                          : null,
                     ),
-                    title: Text(group.name),
+                    title: Text(
+                      group.name,
+                      style: TextStyle(
+                        color: colorScheme.onSurface,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     subtitle: Text(
                       group.description,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: colorScheme.onSecondary),
                     ),
-                    trailing: Text('${group.memberIds.length} miembros'),
+                    trailing: Text(
+                      '${group.memberIds.length} miembros',
+                      style: TextStyle(color: colorScheme.onSecondary),
+                    ),
                     onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Grupo: ${group.name}')),
-                      );
+                      context.go('/group/${group.groupId}'); // Navigate to group detail
                     },
                   ),
                 );

@@ -1,3 +1,4 @@
+//lib/models/group.dart
 class Group {
   final String groupId;
   final String name;
@@ -42,5 +43,28 @@ class Group {
       'postIds': postIds,
       'createdAt': createdAt,
     };
+  }
+
+  // Add copyWith method
+  Group copyWith({
+    String? groupId,
+    String? name,
+    String? description,
+    String? imageUrl,
+    String? creatorId,
+    List<String>? memberIds,
+    List<String>? postIds,
+    String? createdAt,
+  }) {
+    return Group(
+      groupId: groupId ?? this.groupId,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      imageUrl: imageUrl ?? this.imageUrl,
+      creatorId: creatorId ?? this.creatorId,
+      memberIds: memberIds ?? this.memberIds,
+      postIds: postIds ?? this.postIds,
+      createdAt: createdAt ?? this.createdAt,
+    );
   }
 }

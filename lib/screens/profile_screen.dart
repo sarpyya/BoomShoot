@@ -1,407 +1,310 @@
-import 'package:bs/services/firebase_service.dart';
-import 'package:bs/models/post.dart';
 import 'package:bs/models/user.dart';
+import 'package:bs/providers/auth_provider.dart';
+import 'package:bs/services/firebase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:bs/widgets/custom_scaffold.dart'; // Asegúrate de importar tu CustomScaffold
+import 'package:provider/provider.dart';
+import 'dart:developer' as developer;
 
 class ProfileScreen extends StatefulWidget {
-  final String userId;
-
-  const ProfileScreen({super.key, required this.userId});
+  const ProfileScreen({super.key});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  final FirebaseDataService _dataService = FirebaseDataService();
   final _formKey = GlobalKey<FormState>();
-  String? _username;
-  List<String>? _interests;
+  final _usernameController = TextEditingController();
+  final _bioController = TextEditingController();
+  List<String> _interests = [];
   String? _profilePicture;
   bool _isEditing = false;
-  final TextEditingController _usernameController = TextEditingController();
-  final List<String> _availableInterests = [
-    'photography',
-    'travel',
-    'music',
-    'art',
-    'food',
-    'sports',
-  ];
-
-  Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
-      final imageUrl = await FirebaseDataService().uploadProfilePicture(image);
-      if (imageUrl != null) {
-        setState(() {
-          _profilePicture = imageUrl;
-        });
-      }
-    }
-  }
-
-  Future<void> _saveProfile() async {
-    if (_formKey.currentState!.validate()) {
-      try {
-        await FirebaseDataService().updateUserProfile(
-          userId: widget.userId,
-          username: _usernameController.text,
-          profilePicture: _profilePicture,
-          interests: _interests!,
-        );
-        setState(() {
-          _isEditing = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Perfil actualizado',
-              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-            ),
-            backgroundColor: Theme.of(context).colorScheme.surface,
-          ),
-        );
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Error al actualizar perfil: $e',
-              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-            ),
-            backgroundColor: Theme.of(context).colorScheme.surface,
-          ),
-        );
-      }
-    }
-  }
+  bool _isLoading = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
     _usernameController.dispose();
+    _bioController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadUserData() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    if (authProvider.user != null) {
+      setState(() {
+        _usernameController.text = authProvider.user!.username;
+        _bioController.text = authProvider.user!.bio ?? '';
+        _interests = List.from(authProvider.user!.interests);
+        _profilePicture = authProvider.user!.profilePicture;
+      });
+    }
+  }
+
+  Future<void> _saveProfile() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      await _dataService.updateUserProfile(
+        userId: authProvider.userId!,
+        username: _usernameController.text.trim(),
+        profilePicture: _profilePicture,
+        interests: _interests,
+        bio: _bioController.text.trim(),
+      );
+      await authProvider.refreshUser();
+      setState(() {
+        _isEditing = false;
+      });
+    } catch (e, stackTrace) {
+      developer.log('Error saving profile: $e', name: 'ProfileScreen', stackTrace: stackTrace);
+      setState(() {
+        _errorMessage = 'Error al guardar el perfil: $e';
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+      if (pickedFile != null) {
+        setState(() {
+          _isLoading = true;
+          _errorMessage = null;
+        });
+        final url = await _dataService.uploadProfilePicture(pickedFile, Provider.of<AuthProvider>(context, listen: false).userId!);
+        if (url != null) {
+          setState(() {
+            _profilePicture = url;
+          });
+        } else {
+          setState(() {
+            _errorMessage = 'No se pudo subir la imagen';
+          });
+        }
+      }
+    } catch (e, stackTrace) {
+      developer.log('Error picking image: $e', name: 'ProfileScreen', stackTrace: stackTrace);
+      setState(() {
+        _errorMessage = 'Error al subir la imagen: $e';
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final authProvider = Provider.of<AuthProvider>(context);
 
-    return CustomScaffold(
-      title: 'Perfil',
-      showBackButton: true,
-      body: FutureBuilder<User?>(
-        future: FirebaseDataService().getUserById(widget.userId),
-        builder: (context, userSnapshot) {
-          if (userSnapshot.connectionState == ConnectionState.waiting) {
-            return Center(
-              child: CircularProgressIndicator(
-                color: colorScheme.primary, // Dark brown in light mode, muted dark brown in dark mode
-              ),
-            );
-          }
-          if (userSnapshot.hasError || !userSnapshot.hasData) {
-            return Center(
-              child: Text(
-                'Error: ${userSnapshot.error}',
-                style: TextStyle(
-                  color: colorScheme.onSurface, // Light yellowish-orange in light mode, pale yellowish-cream in dark mode
-                ),
-              ),
-            );
-          }
-          final user = userSnapshot.data!;
-          _username ??= user.username;
-          _interests ??= user.interests;
-          _profilePicture ??= user.profilePicture;
-          _usernameController.text = _username!;
+    if (!authProvider.isAuthenticated) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => context.go('/login'));
+      return const SizedBox();
+    }
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: GestureDetector(
-                    onTap: _isEditing ? _pickImage : null,
-                    child: Stack(
-                      alignment: Alignment.bottomRight,
-                      children: [
-                        CircleAvatar(
-                          radius: 50,
-                          backgroundColor: colorScheme.onSurface.withValues(alpha: 0.1),
-                          backgroundImage: _profilePicture != null && _profilePicture!.isNotEmpty
-                              ? NetworkImage(_profilePicture!)
-                              : null,
-                          child: _profilePicture == null || _profilePicture!.isEmpty
-                              ? Icon(
-                            Icons.person,
-                            size: 50,
-                            color: colorScheme.onSurface,
-                          )
-                              : null,
+    return FutureBuilder(
+      future: _loadUserData(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+
+        return Scaffold(
+          appBar: AppBar(
+            title: Text('Perfil', style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
+            actions: [
+              if (!_isEditing)
+                IconButton(
+                  icon: const Icon(Icons.edit),
+                  onPressed: () => setState(() => _isEditing = true),
+                ),
+              IconButton(
+                icon: const Icon(Icons.logout),
+                onPressed: () async {
+                  await authProvider.signOut();
+                  context.go('/login');
+                },
+              ),
+            ],
+          ),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: _isEditing
+                  ? Form(
+                key: _formKey,
+                child: Column(
+                  key: const ValueKey('edit_form'),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: GestureDetector(
+                        onTap: _isLoading ? null : _pickImage,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            CircleAvatar(
+                              radius: 50,
+                              backgroundImage: _profilePicture != null ? NetworkImage(_profilePicture!) : null,
+                              child: _profilePicture == null
+                                  ? const Icon(Icons.person, size: 50)
+                                  : null,
+                            ),
+                            if (_isLoading) const CircularProgressIndicator(),
+                          ],
                         ),
-                        if (_isEditing)
-                          Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: colorScheme.primary,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.camera_alt,
-                              size: 20,
-                              color: colorScheme.onPrimary,
-                            ),
-                          ),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Center(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _isEditing = !_isEditing;
-                        if (!_isEditing) {
-                          _usernameController.text = _username!;
-                          _interests = user.interests;
-                          _profilePicture = user.profilePicture;
-                        }
-                      });
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: colorScheme.primary, // Dark brown in light mode, muted dark brown in dark mode
-                      foregroundColor: colorScheme.onPrimary, // White text/icon
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _usernameController,
+                      decoration: InputDecoration(
+                        labelText: 'Nombre de usuario',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        labelStyle: GoogleFonts.poppins(),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      elevation: 3,
+                      validator: (value) => value!.isEmpty ? 'Ingresa un nombre' : null,
                     ),
-                    child: Text(
-                      _isEditing ? 'Cancelar' : 'Editar Perfil',
-                      style: const TextStyle(fontSize: 16),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _bioController,
+                      decoration: InputDecoration(
+                        labelText: 'Biografía',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        labelStyle: GoogleFonts.poppins(),
+                      ),
+                      maxLength: 150,
+                      maxLines: 3,
                     ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Nombre de usuario',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: colorScheme.onPrimary, // Dark brown in light mode, muted dark brown in dark mode
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      TextFormField(
-                        controller: _usernameController,
-                        enabled: _isEditing,
-                        decoration: InputDecoration(
-                          hintText: 'Ingresa tu nombre de usuario',
-                          hintStyle: TextStyle(color: colorScheme.onSecondary.withValues(alpha: 0.6)),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: colorScheme.secondary, // Muted mustard yellow in light mode, darker mustard yellow in dark mode
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: colorScheme.onSecondary.withValues(alpha: 0.5),
-                            ),
-                          ),
-                          disabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: colorScheme.onSecondary.withValues(alpha: 0.3),
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: colorScheme.onSecondary,
-                              width: 2,
-                            ),
-                          ),
-                        ),
-                        style: TextStyle(color: colorScheme.onSecondary),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Por favor ingresa un nombre de usuario';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Correo',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: colorScheme.onPrimary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        user.email,
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: colorScheme.onPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Intereses',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: colorScheme.onPrimary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Wrap(
-                        spacing: 8,
-                        children: _availableInterests.map((interest) {
-                          final isSelected = _interests!.contains(interest);
-                          return FilterChip(
-                            label: Text(
-                              interest,
-                              style: TextStyle(
-                                color: isSelected ? colorScheme.onPrimary : colorScheme.onPrimary,
-                              ),
-                            ),
-                            selected: isSelected,
-                            selectedColor: colorScheme.primary, // Dark brown in light mode, muted dark brown in dark mode
-                            backgroundColor: colorScheme.surface.withValues(alpha: 0.8),
-                            checkmarkColor: colorScheme.onPrimary,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              side: BorderSide(
-                                color: colorScheme.onPrimary.withValues(alpha: 0.5),
-                              ),
-                            ),
-                            onSelected: _isEditing
-                                ? (selected) {
-                              setState(() {
-                                if (selected) {
-                                  _interests!.add(interest);
-                                } else {
-                                  _interests!.remove(interest);
-                                }
-                              });
-                            }
-                                : null,
-                          );
-                        }).toList(),
-                      ),
-                      if (_isEditing) ...[
-                        const SizedBox(height: 16),
-                        Center(
-                          child: ElevatedButton(
-                            onPressed: _saveProfile,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: colorScheme.primary,
-                              foregroundColor: colorScheme.onPrimary,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                              elevation: 3,
-                            ),
-                            child: const Text(
-                              'Guardar',
-                              style: TextStyle(fontSize: 16),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'Mis Publicaciones',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    color: colorScheme.onPrimary,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                FutureBuilder<List<Post>>(
-                  future: FirebaseDataService().getPostsByUser(widget.userId),
-                  builder: (context, postSnapshot) {
-                    if (postSnapshot.connectionState == ConnectionState.waiting) {
-                      return Center(
-                        child: CircularProgressIndicator(
-                          color: colorScheme.onPrimary,
-                        ),
-                      );
-                    }
-                    if (postSnapshot.hasError) {
-                      return Text(
-                        'Error: ${postSnapshot.error}',
-                        style: TextStyle(color: colorScheme.onSecondary),
-                      );
-                    }
-                    final posts = postSnapshot.data ?? [];
-                    if (posts.isEmpty) {
-                      return Text(
-                        'No hay publicaciones',
-                        style: TextStyle(color: colorScheme.onSecondary),
-                      );
-                    }
-                    return GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 8,
-                        mainAxisSpacing: 8,
-                        childAspectRatio: 1,
-                      ),
-                      itemCount: posts.length,
-                      itemBuilder: (context, index) {
-                        final post = posts[index];
-                        return GestureDetector(
-                          onTap: () => context.go('/post/${post.postId}'),
-                          child: Card(
-                            elevation: 2,
-                            color: colorScheme.surface, // Cream in light mode, warm dark in dark mode
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              side: BorderSide(
-                                color: colorScheme.onSecondary.withValues(alpha: 0.3),
-                              ),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.network(
-                                post.imageUrl ?? 'https://via.placeholder.com/150',
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) => Icon(
-                                  Icons.image,
-                                  color: colorScheme.onPrimary,
-                                  size: 50,
-                                ),
-                              ),
-                            ),
-                          ),
+                    const SizedBox(height: 16),
+                    Text('Intereses', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold)),
+                    Wrap(
+                      spacing: 8,
+                      children: ['Fotografía', 'Viajes', 'Arte', 'Música'].map((interest) {
+                        final isSelected = _interests.contains(interest);
+                        return ChoiceChip(
+                          label: Text(interest, style: GoogleFonts.poppins()),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            setState(() {
+                              if (selected) {
+                                _interests.add(interest);
+                              } else {
+                                _interests.remove(interest);
+                              }
+                            });
+                          },
                         );
-                      },
-                    );
-                  },
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      onPressed: _isLoading ? null : _saveProfile,
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 48),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        backgroundColor: colorScheme.primary,
+                      ),
+                      child: _isLoading
+                          ? const CircularProgressIndicator()
+                          : Text('Guardar', style: GoogleFonts.poppins(fontSize: 16)),
+                    ),
+                    const SizedBox(height: 16),
+                    TextButton(
+                      onPressed: () => setState(() => _isEditing = false),
+                      child: Text('Cancelar', style: GoogleFonts.poppins(color: colorScheme.primary)),
+                    ),
+                    if (_errorMessage != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: Text(
+                          _errorMessage!,
+                          style: GoogleFonts.poppins(color: colorScheme.error, fontSize: 14),
+                        ),
+                      ),
+                  ],
                 ),
-              ],
+              )
+                  : Column(
+                key: const ValueKey('view_profile'),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: CircleAvatar(
+                      radius: 50,
+                      backgroundImage: _profilePicture != null ? NetworkImage(_profilePicture!) : null,
+                      child: _profilePicture == null ? const Icon(Icons.person, size: 50) : null,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _usernameController.text,
+                    style: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _bioController.text.isEmpty ? 'Sin biografía' : _bioController.text,
+                    style: GoogleFonts.poppins(fontSize: 16, color: colorScheme.onSurface.withOpacity(0.7)),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Intereses',
+                    style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  Wrap(
+                    spacing: 8,
+                    children: _interests.isEmpty
+                        ? [Text('Sin intereses', style: GoogleFonts.poppins())]
+                        : _interests
+                        .map((interest) => Chip(
+                      label: Text(interest, style: GoogleFonts.poppins()),
+                    ))
+                        .toList(),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Miembro desde: ${_formatDate(authProvider.user!.createdAt)}',
+                    style: GoogleFonts.poppins(fontSize: 14, color: colorScheme.onSurface.withOpacity(0.7)),
+                  ),
+                  if (_errorMessage != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: Text(
+                        _errorMessage!,
+                        style: GoogleFonts.poppins(color: colorScheme.error, fontSize: 14),
+                      ),
+                    ),
+                ],
+              ),
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
+  }
+
+  String _formatDate(DateTime? date) {
+    if (date == null) return 'Desconocido';
+    return '${date.day}/${date.month}/${date.year}';
   }
 }

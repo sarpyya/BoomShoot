@@ -11,8 +11,9 @@ import 'dart:developer' as developer;
 
 class CameraScreen extends StatefulWidget {
   final String userId;
+  final String? eventId; // Optional eventId for pre-selecting an event
 
-  const CameraScreen({super.key, required this.userId});
+  const CameraScreen({super.key, required this.userId, this.eventId});
 
   @override
   State<CameraScreen> createState() => _CameraScreenState();
@@ -55,6 +56,11 @@ class _CameraScreenState extends State<CameraScreen>
         curve: Curves.easeInOut,
       ),
     );
+
+    // Pre-select eventId if provided
+    if (widget.eventId != null) {
+      _selectedEventId = widget.eventId;
+    }
   }
 
   Future<void> _checkDevice() async {
@@ -155,8 +161,12 @@ class _CameraScreenState extends State<CameraScreen>
         throw 'Camera not initialized';
       }
       final image = await _controller!.takePicture();
+      final file = File(image.path);
+      if (!file.existsSync()) {
+        throw 'Captured image file does not exist: ${image.path}';
+      }
       setState(() {
-        _capturedImage = File(image.path);
+        _capturedImage = file;
       });
       developer.log('Picture taken: ${image.path}', name: 'CameraScreen');
     } catch (e, stackTrace) {
@@ -168,17 +178,36 @@ class _CameraScreenState extends State<CameraScreen>
     }
   }
 
-  Future<void> _uploadPost() async {
+  Future<void> _createPost() async {
     if (_capturedImage == null || _isUploading) return;
+    if (!_capturedImage!.existsSync()) {
+      developer.log('Captured image does not exist: ${_capturedImage!.path}',
+          name: 'CameraScreen');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error: La imagen no es válida')),
+      );
+      return;
+    }
+    final fileSize = await _capturedImage!.length();
+    if (fileSize > 10 * 1024 * 1024) {
+      developer.log('Captured image too large: ${fileSize / (1024 * 1024)}MB',
+          name: 'CameraScreen');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error: La imagen excede el límite de 10MB')),
+      );
+      return;
+    }
     setState(() {
       _isUploading = true;
     });
     try {
-      final imageUrl =
-      await FirebaseDataService().uploadPostImage(_capturedImage!);
+      // Upload photo
+      final imageUrl = await FirebaseDataService().uploadPostImage(_capturedImage!);
       if (imageUrl == null) {
-        throw 'Error uploading image';
+        throw Exception('Error uploading image');
       }
+
+      // Create post
       await FirebaseDataService().createPost(
         userId: widget.userId,
         content: _contentController.text,
@@ -186,6 +215,12 @@ class _CameraScreenState extends State<CameraScreen>
         groupId: _selectedGroupId,
         eventId: _selectedEventId,
       );
+
+      // Add photo to event if eventId is provided
+      if (_selectedEventId != null) {
+        await FirebaseDataService().addPhotoToEvent(_selectedEventId!, imageUrl);
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Publicación creada')),
       );
@@ -195,9 +230,15 @@ class _CameraScreenState extends State<CameraScreen>
         _selectedGroupId = null;
         _selectedEventId = null;
       });
-      context.go('/home');
+
+      // Navigate to gallery if eventId was provided, otherwise home
+      if (_selectedEventId != null) {
+        context.go('/gallery/$_selectedEventId');
+      } else {
+        context.go('/home');
+      }
     } catch (e, stackTrace) {
-      developer.log('Error uploading post: $e',
+      developer.log('Error creating post: $e',
           name: 'CameraScreen', stackTrace: stackTrace);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error al crear publicación: $e')),
@@ -260,14 +301,14 @@ class _CameraScreenState extends State<CameraScreen>
               children: [
                 CameraPreview(_controller!),
                 Positioned(
-                  top: 40,
+                  bottom: 20,
                   left: 16,
                   child: IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Colors.white, size: 30),
+                    icon: const Icon(Icons.arrow_back,
+                        color: Colors.white, size: 30),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                 ),
-                // Bottom bar with camera controls
                 Positioned(
                   bottom: 20,
                   left: 0,
@@ -275,9 +316,7 @@ class _CameraScreenState extends State<CameraScreen>
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      // Empty space or placeholder for balance (if needed)
                       const SizedBox(width: 48),
-                      // Animated FloatingActionButton for taking a picture
                       AnimatedBuilder(
                         animation: _scaleAnimation,
                         builder: (context, child) {
@@ -285,15 +324,17 @@ class _CameraScreenState extends State<CameraScreen>
                             scale: _scaleAnimation.value,
                             child: FloatingActionButton(
                               onPressed: _takePicture,
-                              backgroundColor: Theme.of(context).colorScheme.primary,
-                              child: const Icon(Icons.camera_alt, color: Colors.white),
+                              backgroundColor:
+                              Theme.of(context).colorScheme.primary,
+                              child: const Icon(Icons.camera_alt,
+                                  color: Colors.white),
                             ),
                           );
                         },
                       ),
-                      // Switch camera button
                       IconButton(
-                        icon: const Icon(Icons.cameraswitch, color: Colors.white, size: 30),
+                        icon: const Icon(Icons.cameraswitch,
+                            color: Colors.white, size: 30),
                         onPressed: _switchCamera,
                       ),
                     ],
@@ -381,7 +422,6 @@ class _CameraScreenState extends State<CameraScreen>
               ],
             ),
           ),
-          // Fixed bottom bar for "Publicar" and "Descartar" buttons
           Positioned(
             bottom: 0,
             left: 0,
@@ -390,8 +430,12 @@ class _CameraScreenState extends State<CameraScreen>
               opacity: _capturedImage != null ? 1.0 : 0.0,
               duration: const Duration(milliseconds: 300),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                color: Theme.of(context).colorScheme.surface.withOpacity(0.9),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 10),
+                color: Theme.of(context)
+                    .colorScheme
+                    .surface
+                    .withValues(alpha: 0.9),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
@@ -399,11 +443,14 @@ class _CameraScreenState extends State<CameraScreen>
                       duration: const Duration(milliseconds: 300),
                       curve: Curves.easeInOut,
                       child: ElevatedButton(
-                        onPressed: _isUploading ? null : _uploadPost,
+                        onPressed: _isUploading ? null : _createPost,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).colorScheme.primary,
-                          foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          backgroundColor:
+                          Theme.of(context).colorScheme.primary,
+                          foregroundColor:
+                          Theme.of(context).colorScheme.onPrimary,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 10),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -418,7 +465,8 @@ class _CameraScreenState extends State<CameraScreen>
                             strokeWidth: 2,
                           ),
                         )
-                            : const Text('Publicar', style: TextStyle(fontSize: 16)),
+                            : const Text('Publicar',
+                            style: TextStyle(fontSize: 16)),
                       ),
                     ),
                     AnimatedContainer(
@@ -434,13 +482,16 @@ class _CameraScreenState extends State<CameraScreen>
                           });
                         },
                         style: TextButton.styleFrom(
-                          foregroundColor: Theme.of(context).colorScheme.secondary,
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          foregroundColor:
+                          Theme.of(context).colorScheme.secondary,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 10),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: const Text('Descartar', style: TextStyle(fontSize: 16)),
+                        child: const Text('Descartar',
+                            style: TextStyle(fontSize: 16)),
                       ),
                     ),
                   ],

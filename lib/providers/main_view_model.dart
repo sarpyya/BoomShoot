@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:bs/services/firebase_service.dart';
 import 'package:bs/models/comment.dart';
 import 'package:bs/models/event.dart';
@@ -15,7 +16,8 @@ class MainViewModel extends ChangeNotifier {
   String? _errorMessage;
   String? _lastUserId;
   DateTime? _lastFetchTime;
-  bool _disposed = false; // moved here for clarity
+  bool _disposed = false;
+  Timer? _debounceTimer;
 
   // Simplified getters
   List<Post> get posts => _posts;
@@ -25,59 +27,77 @@ class MainViewModel extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
 
   Future<void> fetchData(String userId) async {
+    // Check existing throttling logic (30-second cache)
     if (_isLoading ||
         _lastUserId == userId &&
             _lastUserId != null &&
             _lastFetchTime != null &&
-            DateTime.now().difference(_lastFetchTime!).inSeconds < 10) {
-      developer.log('Skipping fetchData: Already loading or recently fetched', name: 'MainViewModel');
-      return;
+            DateTime.now().difference(_lastFetchTime!).inSeconds < 30) {
+      return Future.value();
     }
 
-    _isLoading = true;
-    _errorMessage = null;
-    _lastUserId = userId;
-    _lastFetchTime = DateTime.now();
+    // Cancel any pending debounce
+    _debounceTimer?.cancel();
 
-    notifyListeners(); // Notify listeners that we are loading
+    // Debounce the fetch operation
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () async {
+      _isLoading = true;
+      _errorMessage = null;
+      _lastUserId = userId;
+      _lastFetchTime = DateTime.now();
 
-    try {
-      developer.log('Fetching data for user: $userId', name: 'MainViewModel');
-      final posts = await _dataService.getPosts();
-      final events = await _dataService.getEvents();
-      final postComments = <String, List<Comment>>{};
-
-      for (var post in posts) {
-        final comments = await _dataService.getComments(post.postId);
-        postComments[post.postId] = comments;
+      if (!_disposed) {
+        notifyListeners(); // Notify listeners that we are loading
       }
 
-      // Update state only if not disposed
-      if (!_disposed) {
-        _posts = posts;
-        _events = events;
-        _postComments = postComments;
+      try {
+        final posts = await _dataService.getPosts();
+        final events = await _dataService.getEvents();
+        final postComments = <String, List<Comment>>{};
+
+        // Fetch comments in parallel
+        final commentFutures = posts.map((post) async {
+          final comments = await _dataService.getComments(post.postId);
+          return MapEntry(post.postId, comments);
+        }).toList();
+
+        final commentResults = await Future.wait(commentFutures);
+        for (var result in commentResults) {
+          postComments[result.key] = result.value;
+        }
+
+        // Update state only if not disposed
+        if (!_disposed) {
+          _posts = posts;
+          _events = events;
+          _postComments = postComments;
+          _isLoading = false;
+          _errorMessage = null;
+          notifyListeners();
+        }
+      } catch (e, stackTrace) {
+        developer.log('Error fetching data: $e',
+            name: 'MainViewModel', stackTrace: stackTrace);
+
+        // Handle different error types
+        if (e is FirebaseException) {
+          _errorMessage = 'Firebase Error: ${e.message}';
+        } else if (e.toString().contains('network')) {
+          _errorMessage = 'Network Error: Please check your internet connection';
+        } else {
+          _errorMessage = 'Error al cargar los datos: $e';
+        }
+
         _isLoading = false;
-        _errorMessage = null;
-        notifyListeners();
+
+        if (!_disposed) {
+          notifyListeners();
+        }
       }
+    });
 
-    } catch (e, stackTrace) {
-      developer.log('Error fetching data: $e', name: 'MainViewModel', stackTrace: stackTrace);
-
-      // Handle different error types
-      if (e is FirebaseException) {
-        _errorMessage = 'Firebase Error: ${e.message}';
-      } else {
-        _errorMessage = 'Error al cargar los datos: $e';
-      }
-
-      _isLoading = false;
-
-      if (!_disposed) {
-        notifyListeners();
-      }
-    }
+    // Return a completed future for RefreshIndicator
+    return Future.value();
   }
 
   void reset() {
@@ -97,7 +117,8 @@ class MainViewModel extends ChangeNotifier {
   @override
   void dispose() {
     developer.log('Disposing MainViewModel', name: 'MainViewModel');
-    _disposed = true; // Set disposed flag before calling super.dispose
+    _debounceTimer?.cancel();
+    _disposed = true;
     super.dispose();
   }
 

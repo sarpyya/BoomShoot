@@ -24,9 +24,8 @@ class _EventsScreenState extends State<EventsScreen> {
   final Map<String, bool> _expandedDescriptions = {};
   LatLng? _currentLocation;
   late GoogleMapController _mapController;
-  bool _showMapView = false;
   bool _isMapControllerInitialized = false;
-  bool _isLoadingLocation = false; // Track loading state for location
+  bool _isLoadingLocation = false;
 
   static const LatLng _defaultLocation = LatLng(-33.4489, -70.6693);
   final CameraPosition _initialCameraPosition = const CameraPosition(
@@ -102,19 +101,36 @@ class _EventsScreenState extends State<EventsScreen> {
 
   Future<List<Event>> _sortEventsByDistance(List<Event> events) async {
     if (_currentLocation == null) {
-      return events; // Return unsorted events if location isn't available
+      return events;
     }
 
-    List<Event> eventsWithLocation = events.where((event) {
-      if (event.location == null) return false;
-      final coords = event.location!.split(',');
-      return coords.length == 2;
-    }).toList();
+    final eventsWithDistance = <_EventWithDistance>[];
+    final eventsWithoutLocation = <Event>[];
 
-    List<Event> eventsWithoutLocation = events.where((event) => event.location == null).toList();
+    for (final event in events) {
+      if (event.location == null) {
+        eventsWithoutLocation.add(event);
+      } else {
+        final coords = event.location!.split(',');
+        if (coords.length == 2) {
+          try {
+            final lat = double.parse(coords[0]);
+            final lng = double.parse(coords[1]);
+            final eventLatLng = LatLng(lat, lng);
+            final distance = await _calculateDistance(_currentLocation!, eventLatLng);
+            eventsWithDistance.add(_EventWithDistance(event: event, distance: distance));
+          } catch (e) {
+            developer.log('Error parsing location for event ${event.eventId}: $e', name: 'EventsScreen');
+            eventsWithoutLocation.add(event);
+          }
+        } else {
+          eventsWithoutLocation.add(event);
+        }
+      }
+    }
 
-    // Combine sorted events with location and events without location
-    return [...eventsWithLocation, ...eventsWithoutLocation];
+    eventsWithDistance.sort((a, b) => a.distance.compareTo(b.distance));
+    return [...eventsWithDistance.map((e) => e.event), ...eventsWithoutLocation];
   }
 
   Future<Set<Marker>> _buildEventMarkers(List<Event> events) async {
@@ -158,7 +174,8 @@ class _EventsScreenState extends State<EventsScreen> {
   void _showEventDetailsBottomSheet(BuildContext context, Event event) {
     showModalBottomSheet(
       context: context,
-      builder: (context) => Container(
+      isScrollControlled: true,
+      builder: (context) => SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -195,7 +212,7 @@ class _EventsScreenState extends State<EventsScreen> {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  DateFormat('MMM d, yyyy, h:mm a').format(DateTime.parse(event.startTime)),
+                  DateFormat('MMM d, yyyy h:mm a').format(DateTime.parse(event.startTime)),
                   style: const TextStyle(fontSize: 14),
                 ),
               ],
@@ -235,9 +252,63 @@ class _EventsScreenState extends State<EventsScreen> {
                 );
               },
             ),
+            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cerrar'),
+              ),
+            ),
           ],
         ),
       ),
+    );
+  }
+
+  void _showNearbyEventsDialog(List<Event> nearbyEvents) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Eventos Cercanos'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: nearbyEvents.isEmpty
+                ? const Text('No hay eventos cercanos.')
+                : ListView.builder(
+              shrinkWrap: true,
+              itemCount: nearbyEvents.length,
+              itemBuilder: (context, index) {
+                final event = nearbyEvents[index];
+                return Card(
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundImage: event.imageUrl != null ? NetworkImage(event.imageUrl!) : null,
+                      child: event.imageUrl == null ? const Icon(Icons.event) : null,
+                    ),
+                    title: Text(event.name),
+                    subtitle: Text(event.address ?? 'Sin dirección'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _showEventDetailsBottomSheet(context, event);
+                    },
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cerrar'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -250,7 +321,7 @@ class _EventsScreenState extends State<EventsScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.event),
-              title: const Text('Create Event'),
+              title: const Text('Crear Evento'),
               onTap: () {
                 Navigator.pop(context);
                 context.go('/create_event');
@@ -258,7 +329,7 @@ class _EventsScreenState extends State<EventsScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.group),
-              title: const Text('Create Group'),
+              title: const Text('Crear Grupo'),
               onTap: () {
                 Navigator.pop(context);
                 context.go('/create_group');
@@ -277,328 +348,193 @@ class _EventsScreenState extends State<EventsScreen> {
         return Scaffold(
           appBar: AppBar(
             title: const Text('Eventos'),
-            actions: [
-              IconButton(
-                icon: Icon(_showMapView ? Icons.list : Icons.map),
-                onPressed: () {
-                  setState(() {
-                    _showMapView = !_showMapView;
-                  });
-                },
-                tooltip: _showMapView ? 'List View' : 'Map View',
-              ),
-            ],
           ),
           floatingActionButton: FloatingActionButton(
             onPressed: () => _showFabMenu(context),
-            tooltip: 'Add Event or Group',
+            tooltip: 'Añadir Evento o Grupo',
             child: const Icon(Icons.add),
           ),
-          body: viewModel.isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : viewModel.errorMessage != null
-              ? Center(child: Text(viewModel.errorMessage!))
-              : _showMapView
-              ? _buildMapView(viewModel.events)
-              : _buildListView(viewModel.events),
-        );
-      },
-    );
-  }
-
-  Widget _buildListView(List<Event> events) {
-    return FutureBuilder<List<Event>>(
-      future: _sortEventsByDistance(events),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final sortedEvents = snapshot.data ?? events;
-
-        return RefreshIndicator(
-          onRefresh: () => _viewModel.fetchData(widget.userId),
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              if (sortedEvents.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(8.0),
-                  child: Text('No hay eventos disponibles'),
-                ),
-              // Carrusel horizontal (máximo 10)
-              SizedBox(
-                height: 200,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: sortedEvents.length > 10 ? 10 : sortedEvents.length,
-                  separatorBuilder: (context, index) => const SizedBox(width: 12),
-                  itemBuilder: (context, index) {
-                    final event = sortedEvents[index];
-                    return SizedBox(
-                      width: 300,
-                      child: EventCard(
-                        event: event,
-                        isExpanded: _expandedDescriptions[event.eventId] ?? false,
-                        onToggleExpand: () {
-                          setState(() {
-                            _expandedDescriptions[event.eventId] =
-                            !(_expandedDescriptions[event.eventId] ?? false);
-                          });
-                        },
+          body: RefreshIndicator(
+            onRefresh: () => _viewModel.fetchData(widget.userId),
+            child: viewModel.isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : viewModel.errorMessage != null
+                ? Center(child: Text(viewModel.errorMessage!))
+                : SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0, bottom: 8.0),
+                    child: Text(
+                      'Eventos Destacados',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  SizedBox(
+                    height: 200,
+                    child: viewModel.events.isEmpty
+                        ? const Center(child: Text('No hay eventos para mostrar.'))
+                        : EventCarousel(
+                      events: viewModel.events.take(10).toList(), // Mostrar hasta 10 eventos en el carrusel
+                      onEventTap: (event) => _showEventDetailsBottomSheet(context, event),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Text(
+                      'Mapa de Eventos',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: SizedBox(
+                      height: 300,
+                      child: Stack(
+                        children: [
+                          FutureBuilder<Set<Marker>>(
+                            future: _buildEventMarkers(viewModel.events),
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState.waiting) {
+                                return const Center(child: CircularProgressIndicator());
+                              }
+                              final markers = snapshot.data ?? {};
+                              return GoogleMap(
+                                initialCameraPosition: _initialCameraPosition,
+                                onMapCreated: (GoogleMapController controller) {
+                                  _mapController = controller;
+                                  _isMapControllerInitialized = true;
+                                  if (_currentLocation != null) {
+                                    _mapController.animateCamera(CameraUpdate.newLatLngZoom(_currentLocation!, 12));
+                                  }
+                                },
+                                markers: markers,
+                                myLocationEnabled: true,
+                                myLocationButtonEnabled: true,
+                              );
+                            },
+                          ),
+                          if (_isLoadingLocation)
+                            const Center(child: CircularProgressIndicator()),
+                        ],
                       ),
-                    );
-                  },
-                ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        final sortedEvents = await _sortEventsByDistance(viewModel.events);
+                        _showNearbyEventsDialog(sortedEvents);
+                      },
+                      icon: const Icon(Icons.near_me),
+                      label: const Text('Mostrar Eventos Cercanos'),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 50),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
               ),
-              const SizedBox(height: 16),
-              // Lista vertical completa
-              ...sortedEvents.map(
-                    (event) => EventCard(
-                  event: event,
-                  isExpanded: _expandedDescriptions[event.eventId] ?? false,
-                  onToggleExpand: () {
-                    setState(() {
-                      _expandedDescriptions[event.eventId] =
-                      !(_expandedDescriptions[event.eventId] ?? false);
-                    });
-                  },
-                ),
-              ),
-            ],
+            ),
           ),
         );
       },
-    );
-  }
-
-
-  Widget _buildMapView(List<Event> events) {
-    return Stack(
-      children: [
-        FutureBuilder<Set<Marker>>(
-          future: _buildEventMarkers(events),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            final markers = snapshot.data ?? {};
-            return GoogleMap(
-              initialCameraPosition: _initialCameraPosition,
-              onMapCreated: (GoogleMapController controller) {
-                _mapController = controller;
-                _isMapControllerInitialized = true;
-                if (_currentLocation != null) {
-                  _mapController.animateCamera(CameraUpdate.newLatLngZoom(_currentLocation!, 12));
-                }
-              },
-              markers: markers,
-              myLocationEnabled: true,
-              myLocationButtonEnabled: true,
-            );
-          },
-        ),
-        if (_isLoadingLocation)
-          const Center(child: CircularProgressIndicator()),
-      ],
     );
   }
 }
 
-class EventCard extends StatelessWidget {
-  final Event event;
-  final bool isExpanded;
-  final VoidCallback onToggleExpand;
+class EventCarousel extends StatelessWidget {
+  final List<Event> events;
+  final Function(Event) onEventTap;
 
-  const EventCard({
-    super.key,
-    required this.event,
-    required this.isExpanded,
-    required this.onToggleExpand,
-  });
+  const EventCarousel({super.key, required this.events, required this.onEventTap});
 
   @override
   Widget build(BuildContext context) {
+    return ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+    scrollDirection: Axis.horizontal,
+    itemCount: events.length,
+    separatorBuilder: (context, index) => const SizedBox(width: 12),
+    itemBuilder: (context, index) {
+    final event = events[index];
     final imageUrl = event.imageUrl ?? (event.photos.isNotEmpty ? event.photos.first : null);
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return GestureDetector(
+    onTap: () => onEventTap(event),
+    child: SizedBox(
+    width: 200,
+    child: Card(
+    elevation: 3,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+    child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+    Expanded(
+    child: ClipRRect(
+    borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+    child: Image.network(
+    imageUrl ?? 'https://via.placeholder.com/200x120',
+    width: double.infinity,
+    height: 120,
+    fit: BoxFit.cover,
+    errorBuilder: (context, error, stackTrace) => Container(
+    color: Colors.grey[300],
+    child: const Icon(Icons.event, size: 40),
+    ),
+    ),
+    ),
+    ),
+    Padding(
+    padding: const EdgeInsets.all(8.0),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          event.name,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 4),
+        Row(
           children: [
-            // Imagen del evento
-            ClipOval(
-              child: Image.network(
-                imageUrl ?? 'https://via.placeholder.com/80',
-                width: 80,
-                height: 80,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  width: 80,
-                  height: 80,
-                  color: Colors.grey[300],
-                  child: const Icon(Icons.event, size: 40),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-
-            // Contenido flexible
+            Icon(Icons.location_on, size: 14, color: Theme.of(context).colorScheme.secondary),
+            const SizedBox(width: 4),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    event.name,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 4),
-
-                  Row(
-                    children: [
-                      Icon(Icons.location_on, size: 16, color: Theme.of(context).colorScheme.secondary),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          event.address ?? event.placeId ?? 'No address provided',
-                          style: Theme.of(context).textTheme.bodySmall,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-
-                  Row(
-                    children: [
-                      Icon(Icons.calendar_today, size: 16, color: Theme.of(context).colorScheme.secondary),
-                      const SizedBox(width: 4),
-                      Text(
-                        DateFormat('MMM d, yyyy, h:mm a').format(DateTime.parse(event.startTime)),
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-
-                  if (event.interests.isNotEmpty) ...[
-                    Wrap(
-                      spacing: 4.0,
-                      runSpacing: 4.0,
-                      children: event.interests.map((interest) {
-                        return Chip(
-                          label: Text(interest, style: const TextStyle(fontSize: 12)),
-                          backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                          labelPadding: const EdgeInsets.symmetric(horizontal: 8.0),
-                          padding: EdgeInsets.zero,
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 4),
-                  ],
-
-                  AnimatedCrossFade(
-                    firstChild: Text(
-                      event.description ?? 'No description available',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    secondChild: Text(
-                      event.description ?? 'No description available',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    crossFadeState: isExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
-                    duration: const Duration(milliseconds: 200),
-                  ),
-                  if (event.description != null && event.description!.isNotEmpty)
-                    TextButton(
-                      onPressed: onToggleExpand,
-                      child: Text(isExpanded ? 'See Less' : 'See More'),
-                    ),
-
-                  const SizedBox(height: 8),
-
-                  FutureBuilder<User?>(
-                    future: FirebaseDataService().getUserById(event.creatorId),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        );
-                      }
-                      final user = snapshot.data;
-                      return Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 16,
-                            backgroundImage: user?.profilePicture != null
-                                ? NetworkImage(user!.profilePicture!)
-                                : null,
-                            child: user?.profilePicture == null
-                                ? const Icon(Icons.person, size: 16)
-                                : null,
-                          ),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              user?.username ?? 'Unknown Organizer',
-                              style: Theme.of(context).textTheme.bodySmall,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ],
+              child: Text(
+                event.address ?? 'Sin dirección',
+                style: const TextStyle(fontSize: 12),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
         ),
-      ),
+        const SizedBox(height: 4),
+        Text(
+          DateFormat('MMM d, y').format(DateTime.parse(event.startTime)),
+          style: const TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+      ],
+    ),
+    ),
+    ],
+    ),
+    ),
+    ),
     );
-
+    },
+    );
   }
 }
-class EventCarousel extends StatelessWidget {
-  final List<Event> events;
-  final Map<String, bool> expandedDescriptions;
-  final Function(String) onToggleExpand;
 
-  EventCarousel({
-    required this.events,
-    required this.expandedDescriptions,
-    required this.onToggleExpand,
-  });
+class _EventWithDistance {
+  final Event event;
+  final double distance;
 
-  @override
-  Widget build(BuildContext context) {
-    final limitedEvents = events.length > 10 ? events.sublist(0, 10) : events;
-
-    return SizedBox(
-      height: 200,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: limitedEvents.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 12),
-        itemBuilder: (context, index) {
-          final event = limitedEvents[index];
-          return SizedBox(
-            width: 300,
-            child: EventCard(
-              event: event,
-              isExpanded: expandedDescriptions[event.eventId] ?? false,
-              onToggleExpand: () => onToggleExpand(event.eventId),
-            ),
-          );
-        },
-      ),
-    );
-  }
+  _EventWithDistance({required this.event, required this.distance});
 }
